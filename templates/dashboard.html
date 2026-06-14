@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Submit Transcription Job</h1>
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+<form method="post" action="/submit">
+  <label>Google Drive file URL:</label><br><br>
+  <input type="text" name="drive_url"
+         style="width:100%;padding:8px;"
+         placeholder="https://drive.google.com/file/d/...">
+  <br><br>
+  <button type="submit" class="btn btn-primary">
+    Submit for Transcription
+  </button>
+</form>
+
+{% if jobs %}
+<h2>My Recent Jobs</h2>
+<table>
+  <tr>
+    <th>Job ID</th><th>File</th>
+    <th>Status</th><th>Created</th>
+  </tr>
+  {% for job in jobs %}
+  <tr>
+    <td><a href="/job/{{ job.job_id }}">
+      {{ job.job_id[:8] }}...
+    </a></td>
+    <td>{{ job.file_name }}</td>
+    <td>{{ job.status }}</td>
+    <td>{{ job.created_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

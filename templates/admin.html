@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Admin Panel</h1>
+
+<h2>Users</h2>
+<table>
+  <tr>
+    <th>Email</th><th>Status</th><th>Role</th>
+    <th>Last Login</th><th>Actions</th>
+  </tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.email }}</td>
+    <td>{{ u.status }}</td>
+    <td>{{ u.role }}</td>
+    <td>{{ u.last_login or "Never" }}</td>
+    <td>
+      {% if u.status != "active" %}
+      <form method="post" action="/admin/approve" style="display:inline">
+        <input type="hidden" name="email" value="{{ u.email }}">
+        <button class="btn btn-primary">Approve</button>
+      </form>
+      {% endif %}
+      {% if u.status != "blocked" %}
+      <form method="post" action="/admin/block" style="display:inline">
+        <input type="hidden" name="email" value="{{ u.email }}">
+        <button class="btn btn-warning">Block</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/admin/set-role" style="display:inline">
+        <input type="hidden" name="email" value="{{ u.email }}">
+        <select name="role">
+          <option value="user"
+            {% if u.role == "user" %}selected{% endif %}>
+            user
+          </option>
+          <option value="admin"
+            {% if u.role == "admin" %}selected{% endif %}>
+            admin
+          </option>
+        </select>
+        <button class="btn">Set Role</button>
+      </form>
+      <form method="post" action="/admin/delete" style="display:inline">
+        <input type="hidden" name="email" value="{{ u.email }}">
+        <button class="btn btn-danger">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>All Jobs</h2>
+<table>
+  <tr>
+    <th>Job ID</th><th>User</th>
+    <th>Status</th><th>Created</th>
+  </tr>
+  {% for job in jobs %}
+  <tr>
+    <td><a href="/job/{{ job.job_id }}">
+      {{ job.job_id[:8] }}...
+    </a></td>
+    <td>{{ job.user_email }}</td>
+    <td>{{ job.status }}</td>
+    <td>{{ job.created_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

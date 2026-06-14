@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Job Status</h1>
+<table>
+  <tr><th>Job ID</th><td>{{ job.job_id }}</td></tr>
+  <tr><th>File</th><td>{{ job.file_name }}</td></tr>
+  <tr><th>Status</th><td>{{ job.status }}</td></tr>
+  <tr><th>Created</th><td>{{ job.created_at }}</td></tr>
+  <tr><th>Started</th><td>{{ job.started_at or "-" }}</td></tr>
+  <tr><th>Completed</th><td>{{ job.completed_at or "-" }}</td></tr>
+  {% if job.error %}
+  <tr><th>Error</th><td class="error">{{ job.error }}</td></tr>
+  {% endif %}
+</table>
+
+{% if job.status == "complete" and job.srt_content %}
+<h2>Transcript (SRT)</h2>
+<pre style="background:#f5f5f5;padding:20px;
+            overflow-x:auto;">{{ job.srt_content }}</pre>
+{% endif %}
+
+{% if job.status in ("queued", "running") %}
+<script>
+  setTimeout(() => location.reload(), 10000);
+</script>
+<p>Job is processing. Page will refresh automatically.</p>
+{% endif %}
+{% endblock %}

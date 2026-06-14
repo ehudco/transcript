@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Transcription Platform</h1>
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+<a href="/auth/google">
+  <button class="btn btn-primary">Sign in with Google</button>
+</a>
+{% endblock %}
