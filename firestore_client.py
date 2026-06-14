@@ -73,15 +73,14 @@ def list_user_jobs(user_email: str):
     docs = (
         db.collection("jobs")
         .where("user_email", "==", user_email)
-        .order_by("created_at", direction=firestore.Query.DESCENDING)
         .stream()
     )
-    return [doc.to_dict() for doc in docs]
+    results = [doc.to_dict() for doc in docs]
+    results.sort(key=lambda j: j.get("created_at") or datetime.min, reverse=True)
+    return results
 
 def list_all_jobs():
-    docs = (
-        db.collection("jobs")
-        .order_by("created_at", direction=firestore.Query.DESCENDING)
-        .stream()
-    )
-    return [doc.to_dict() for doc in docs]
+    docs = db.collection("jobs").stream()
+    results = [doc.to_dict() for doc in docs]
+    results.sort(key=lambda j: j.get("created_at") or datetime.min, reverse=True)
+    return results

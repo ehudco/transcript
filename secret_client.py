@@ -1,7 +1,7 @@
 from google.cloud import secretmanager
 import os
 
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "transcription-platform")
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "whisper-project-462317")
 
 def get_secret(name: str) -> str:
     client = secretmanager.SecretManagerServiceClient()

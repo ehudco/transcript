@@ -21,8 +21,10 @@ SCOPES = [
 ]
 
 def get_flow(request: Request) -> Flow:
-    # Force https for redirect URI
-    base_url = str(request.base_url).replace("http://", "https://")
+    if os.environ.get("ENV") == "development":
+        base_url = str(request.base_url)
+    else:
+        base_url = str(request.base_url).replace("http://", "https://")
     redirect_uri = base_url + "auth/callback"
 
     client_config = {

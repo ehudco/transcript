@@ -2,7 +2,7 @@ import os
 from googleapiclient import discovery
 from google.auth import default
 
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "transcription-platform")
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "whisper-project-462317")
 ZONE = os.environ.get("VM_ZONE", "europe-west1-b")
 INSTANCE_NAME = os.environ.get("VM_INSTANCE_NAME", "transcription-worker")
 

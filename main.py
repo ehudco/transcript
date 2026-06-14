@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,13 +13,12 @@ from secret_client import get_secret
 
 app = FastAPI()
 
-# Session middleware
 app.add_middleware(
     SessionMiddleware,
     secret_key=get_secret("SESSION_SECRET"),
     session_cookie="session",
     max_age=3600,
-    https_only=True,
+    https_only=os.environ.get("ENV") != "development",
     same_site="lax"
 )
 
