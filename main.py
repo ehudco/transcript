@@ -22,6 +22,11 @@ def _dashboard_context(request):
 
 app = FastAPI()
 
+# Trust X-Forwarded-Proto from Cloud Run's proxy so request.url uses https://
+if os.environ.get("ENV") != "development":
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=get_secret("SESSION_SECRET"),
