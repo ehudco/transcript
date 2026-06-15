@@ -3,7 +3,7 @@ steps:
     args:
       - build
       - -t
-      - gcr.io/$PROJECT_ID/transcript-web:$COMMIT_SHA
+      - gcr.io/$PROJECT_ID/transcript-web:$BUILD_ID
       - -t
       - gcr.io/$PROJECT_ID/transcript-web:latest
       - .
@@ -20,7 +20,7 @@ steps:
       - run
       - deploy
       - transcript-web
-      - --image=gcr.io/$PROJECT_ID/transcript-web:$COMMIT_SHA
+      - --image=gcr.io/$PROJECT_ID/transcript-web:$BUILD_ID
       - --region=europe-west1
       - --platform=managed
       - --allow-unauthenticated
