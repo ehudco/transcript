@@ -14,9 +14,12 @@ from secret_client import get_secret
 def _dashboard_context(request):
     """Extra template vars needed by dashboard.html."""
     tokens = request.session.get("oauth_tokens", {})
+    picker_api_key = get_secret("PICKER_API_KEY").strip()
+    if not picker_api_key:
+        raise ValueError("PICKER_API_KEY secret is empty")
     return {
-        "google_client_id": get_secret("GOOGLE_CLIENT_ID"),
-        "picker_api_key": get_secret("PICKER_API_KEY"),
+        "google_client_id": get_secret("GOOGLE_CLIENT_ID").strip(),
+        "picker_api_key": picker_api_key,
         "oauth_token": tokens.get("token", ""),
     }
 
