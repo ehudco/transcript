@@ -51,21 +51,20 @@ class TestSubmitJob:
     async def test_unauthenticated_redirects_to_login(self, client):
         resp = await client.post(
             "/submit",
-            data={"drive_url": "https://drive.google.com/file/d/abc123/view"},
+            data={"file_id": "abc123", "file_name": "test.mp4"},
             follow_redirects=False,
         )
         assert resp.status_code in (302, 307)
         assert resp.headers["location"].endswith("/login")
 
-    async def test_invalid_url_shows_error(self, user_client):
+    async def test_missing_file_id_returns_422(self, user_client):
+        # The Picker always sends a file_id; submitting without one is malformed input
         resp = await user_client.post(
             "/submit",
-            data={"drive_url": "not-a-drive-url"},
+            data={"file_name": "test.mp4"},  # file_id omitted entirely
             follow_redirects=False,
         )
-        # Returns the dashboard template with an error (200) — NOT a redirect.
-        assert resp.status_code == 200
-        assert b"Could not parse" in resp.content or b"Drive file ID" in resp.content
+        assert resp.status_code == 422
 
     async def test_valid_url_in_test_mode_creates_job_and_redirects(self, user_client):
         with (
@@ -74,13 +73,14 @@ class TestSubmitJob:
         ):
             resp = await user_client.post(
                 "/submit",
-                data={"drive_url": "https://drive.google.com/file/d/FILE_ID_123/view"},
+                data={"file_id": "FILE_ID_123", "file_name": "my_video.mp4"},
                 follow_redirects=False,
             )
 
         mock_create.assert_called_once()
         call_kwargs = mock_create.call_args.kwargs
         assert call_kwargs["file_id"] == "FILE_ID_123"
+        assert call_kwargs["file_name"] == "my_video.mp4"
         assert call_kwargs["user_email"] == "user@example.com"
         assert resp.status_code in (302, 303, 307)
         assert "/job/" in resp.headers["location"]
@@ -98,7 +98,7 @@ class TestSubmitJob:
         ):
             await user_client.post(
                 "/submit",
-                data={"drive_url": "https://drive.google.com/file/d/FILE_ID/view"},
+                data={"file_id": "FILE_ID", "file_name": "test.mp4"},
                 follow_redirects=False,
             )
 
@@ -117,7 +117,7 @@ class TestSubmitJob:
         ):
             await user_client.post(
                 "/submit",
-                data={"drive_url": "https://drive.google.com/file/d/FILE_ID/view"},
+                data={"file_id": "FILE_ID", "file_name": "test.mp4"},
                 follow_redirects=False,
             )
 
@@ -132,7 +132,7 @@ class TestSubmitJob:
         ):
             await user_client.post(
                 "/submit",
-                data={"drive_url": "https://drive.google.com/file/d/FILE_ID/view"},
+                data={"file_id": "FILE_ID", "file_name": "test.mp4"},
                 follow_redirects=False,
             )
 

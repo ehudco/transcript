@@ -4,13 +4,18 @@
 {% if error %}
 <p class="error">{{ error }}</p>
 {% endif %}
-<form method="post" action="/submit">
-  <label>Google Drive file URL:</label><br><br>
-  <input type="text" name="drive_url"
-         style="width:100%;padding:8px;"
-         placeholder="https://drive.google.com/file/d/...">
+
+<form method="post" action="/submit" id="submit-form">
+  <input type="hidden" name="file_id" id="file_id">
+  <input type="hidden" name="file_name" id="file_name">
+
+  <button type="button" class="btn btn-secondary" onclick="openPicker()">
+    Select file from Google Drive
+  </button>
+  <span id="selected-file" style="margin-left:12px;color:#555;"></span>
+
   <br><br>
-  <button type="submit" class="btn btn-primary">
+  <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
     Submit for Transcription
   </button>
 </form>
@@ -24,9 +29,7 @@
   </tr>
   {% for job in jobs %}
   <tr>
-    <td><a href="/job/{{ job.job_id }}">
-      {{ job.job_id[:8] }}...
-    </a></td>
+    <td><a href="/job/{{ job.job_id }}">{{ job.job_id[:8] }}...</a></td>
     <td>{{ job.file_name }}</td>
     <td>{{ job.status }}</td>
     <td>{{ job.created_at }}</td>
@@ -34,4 +37,34 @@
   {% endfor %}
 </table>
 {% endif %}
+
+<script>
+  const CLIENT_ID = "{{ google_client_id }}";
+  const API_KEY   = "{{ picker_api_key }}";
+  const OAUTH_TOKEN = "{{ oauth_token }}";
+
+  function openPicker() {
+    gapi.load("picker", () => {
+      const picker = new google.picker.PickerBuilder()
+        .addView(google.picker.ViewId.DOCS)
+        .setOAuthToken(OAUTH_TOKEN)
+        .setDeveloperKey(API_KEY)
+        .setCallback(pickerCallback)
+        .build();
+      picker.setVisible(true);
+    });
+  }
+
+  function pickerCallback(data) {
+    if (data.action === google.picker.Action.PICKED) {
+      const file = data.docs[0];
+      document.getElementById("file_id").value   = file.id;
+      document.getElementById("file_name").value  = file.name;
+      document.getElementById("selected-file").textContent = "Selected: " + file.name;
+      document.getElementById("submit-btn").disabled = false;
+    }
+  }
+</script>
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://apis.google.com/js/platform.js" async defer></script>
 {% endblock %}

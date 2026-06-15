@@ -11,6 +11,15 @@ from admin import router as admin_router
 from jobs import router as jobs_router
 from secret_client import get_secret
 
+def _dashboard_context(request):
+    """Extra template vars needed by dashboard.html."""
+    tokens = request.session.get("oauth_tokens", {})
+    return {
+        "google_client_id": get_secret("GOOGLE_CLIENT_ID"),
+        "picker_api_key": get_secret("PICKER_API_KEY"),
+        "oauth_token": tokens.get("token", ""),
+    }
+
 app = FastAPI()
 
 app.add_middleware(
@@ -41,5 +50,5 @@ async def dashboard(request: Request):
     if not user:
         return RedirectResponse("/login")
     return templates.TemplateResponse(
-        "dashboard.html", {"request": request, "user": user}
+        "dashboard.html", {"request": request, "user": user, **_dashboard_context(request)}
     )

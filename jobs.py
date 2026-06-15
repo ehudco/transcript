@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from firestore_client import create_job, get_job, list_user_jobs
+from secret_client import get_secret
 import re
 
 router = APIRouter()
@@ -45,13 +46,12 @@ def require_login(request: Request):
     return None
 
 @router.post("/submit")
-async def submit_job(request: Request, drive_url: str = Form(...)):
+async def submit_job(request: Request, file_id: str = Form(...), file_name: str = Form(...)):
     guard = require_login(request)
     if guard:
         return guard
 
     user = request.session["user"]
-    file_id = parse_drive_file_id(drive_url)
 
     if not file_id:
         return templates.TemplateResponse(
@@ -59,7 +59,7 @@ async def submit_job(request: Request, drive_url: str = Form(...)):
             {
                 "request": request,
                 "user": user,
-                "error": "Could not parse Drive file ID from URL."
+                "error": "No file selected."
             }
         )
 
@@ -68,7 +68,7 @@ async def submit_job(request: Request, drive_url: str = Form(...)):
         job_id=job_id,
         user_email=user["email"],
         file_id=file_id,
-        file_name=drive_url,
+        file_name=file_name,
         oauth_tokens=request.session.get("oauth_tokens"),
     )
 
@@ -141,7 +141,15 @@ async def my_jobs(request: Request):
 
     user = request.session["user"]
     jobs = list_user_jobs(user["email"])
+    tokens = request.session.get("oauth_tokens", {})
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "user": user, "jobs": jobs}
+        {
+            "request": request,
+            "user": user,
+            "jobs": jobs,
+            "google_client_id": get_secret("GOOGLE_CLIENT_ID"),
+            "picker_api_key": get_secret("PICKER_API_KEY"),
+            "oauth_token": tokens.get("token", ""),
+        }
     )

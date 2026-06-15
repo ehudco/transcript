@@ -26,6 +26,7 @@ from secret_client import get_secret
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "5"))
 IDLE_SHUTDOWN_SECONDS = int(os.environ.get("IDLE_SHUTDOWN_SECONDS", "600"))  # 10 minutes
 TEST_MODE = os.environ.get("TEST_MODE", "false").lower() == "true"
+DOWNLOAD_ONLY = os.environ.get("DOWNLOAD_ONLY", "false").lower() == "true"
 
 DUMMY_SRT = """\
 1
@@ -110,6 +111,9 @@ def process_job(job: dict):
         complete_job(job_id, DUMMY_SRT)
         return
 
+    if DOWNLOAD_ONLY:
+        print(f"[worker] DOWNLOAD_ONLY — will download file then mark complete without transcribing")
+
     if not tokens:
         fail_job(job_id, "No OAuth tokens stored for this job.")
         return
@@ -118,10 +122,15 @@ def process_job(job: dict):
     try:
         print(f"[worker] downloading file {file_id} from Drive...")
         audio_path = download_file(tokens, file_id)
-        print(f"[worker] downloaded to {audio_path}, running Whisper...")
-        srt = transcribe(audio_path)
-        complete_job(job_id, srt)
-        print(f"[worker] job {job_id} completed")
+        print(f"[worker] downloaded to {audio_path} ({os.path.getsize(audio_path)} bytes)")
+        if DOWNLOAD_ONLY:
+            complete_job(job_id, f"DOWNLOAD_ONLY mode — file downloaded successfully ({os.path.getsize(audio_path)} bytes), transcription skipped.")
+            print(f"[worker] job {job_id} completed (download only)")
+        else:
+            print(f"[worker] running WhisperX...")
+            srt = transcribe(audio_path)
+            complete_job(job_id, srt)
+            print(f"[worker] job {job_id} completed")
     except Exception as exc:
         print(f"[worker] job {job_id} failed: {exc}", file=sys.stderr)
         fail_job(job_id, str(exc))
