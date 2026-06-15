@@ -132,7 +132,8 @@ class TestUpdateUserLastLogin:
 
 class TestCreateJob:
     def test_sets_correct_fields(self, fc, mock_db):
-        fc.create_job("job-123", "user@example.com", "file-abc", "my_file.mp4")
+        tokens = {"token": "t", "refresh_token": "r"}
+        fc.create_job("job-123", "user@example.com", "file-abc", "my_file.mp4", oauth_tokens=tokens)
 
         set_call = mock_db.collection.return_value.document.return_value.set
         set_call.assert_called_once()
@@ -143,9 +144,15 @@ class TestCreateJob:
         assert data["file_id"] == "file-abc"
         assert data["file_name"] == "my_file.mp4"
         assert data["status"] == "queued"
+        assert data["oauth_tokens"] == tokens
         assert data["srt_content"] is None
         assert data["error"] is None
         assert isinstance(data["created_at"], datetime)
+
+    def test_oauth_tokens_defaults_to_none(self, fc, mock_db):
+        fc.create_job("job-456", "user@example.com", "file-xyz", "file.mp4")
+        data = mock_db.collection.return_value.document.return_value.set.call_args[0][0]
+        assert data["oauth_tokens"] is None
 
 
 class TestGetJob:
@@ -167,28 +174,82 @@ class TestGetJob:
 
 class TestListUserJobs:
     def test_queries_by_email_descending(self, fc, mock_db):
-        docs = [MagicMock()]
-        docs[0].to_dict.return_value = {"job_id": "j1"}
+        from datetime import datetime, timezone
+        docs = [MagicMock(), MagicMock()]
+        docs[0].to_dict.return_value = {"job_id": "j1", "created_at": datetime(2024, 1, 1, tzinfo=timezone.utc)}
+        docs[1].to_dict.return_value = {"job_id": "j2", "created_at": datetime(2024, 6, 1, tzinfo=timezone.utc)}
 
-        chain = mock_db.collection.return_value.where.return_value.order_by.return_value
-        chain.stream.return_value = iter(docs)
+        mock_db.collection.return_value.where.return_value.stream.return_value = iter(docs)
 
         result = fc.list_user_jobs("user@example.com")
 
         mock_db.collection.assert_called_with("jobs")
         mock_db.collection.return_value.where.assert_called_once_with("user_email", "==", "user@example.com")
-        assert result == [{"job_id": "j1"}]
+        # Sorted descending by created_at
+        assert result == [
+            {"job_id": "j2", "created_at": datetime(2024, 6, 1, tzinfo=timezone.utc)},
+            {"job_id": "j1", "created_at": datetime(2024, 1, 1, tzinfo=timezone.utc)},
+        ]
+
+
+class TestClaimQueuedJob:
+    def test_returns_none_when_no_queued_jobs(self, fc, mock_db):
+        mock_db.collection.return_value.where.return_value.limit.return_value.stream.return_value = iter([])
+        assert fc.claim_queued_job() is None
+
+    def test_claims_job_and_sets_processing(self, fc, mock_db):
+        mock_doc = MagicMock()
+        mock_doc.to_dict.return_value = {"job_id": "j1", "status": "queued"}
+        mock_db.collection.return_value.where.return_value.limit.return_value.stream.return_value = iter([mock_doc])
+
+        result = fc.claim_queued_job()
+
+        mock_doc.reference.update.assert_called_once()
+        update_data = mock_doc.reference.update.call_args[0][0]
+        assert update_data["status"] == "processing"
+        assert isinstance(update_data["started_at"], datetime)
+        assert result["job_id"] == "j1"
+
+
+class TestCompleteJob:
+    def test_sets_completed_and_clears_tokens(self, fc, mock_db):
+        fc.complete_job("j1", "1\n00:00:00,000 --> 00:00:01,000\nHello\n")
+
+        update = mock_db.collection.return_value.document.return_value.update
+        update.assert_called_once()
+        data = update.call_args[0][0]
+        assert data["status"] == "completed"
+        assert data["oauth_tokens"] is None
+        assert "Hello" in data["srt_content"]
+        assert isinstance(data["completed_at"], datetime)
+
+
+class TestFailJob:
+    def test_sets_error_and_clears_tokens(self, fc, mock_db):
+        fc.fail_job("j1", "something went wrong")
+
+        update = mock_db.collection.return_value.document.return_value.update
+        update.assert_called_once()
+        data = update.call_args[0][0]
+        assert data["status"] == "error"
+        assert data["error"] == "something went wrong"
+        assert data["oauth_tokens"] is None
+        assert isinstance(data["completed_at"], datetime)
 
 
 class TestListAllJobs:
     def test_returns_all_jobs_sorted(self, fc, mock_db):
+        from datetime import datetime, timezone
         docs = [MagicMock(), MagicMock()]
-        docs[0].to_dict.return_value = {"job_id": "j2"}
-        docs[1].to_dict.return_value = {"job_id": "j1"}
+        docs[0].to_dict.return_value = {"job_id": "j1", "created_at": datetime(2024, 1, 1, tzinfo=timezone.utc)}
+        docs[1].to_dict.return_value = {"job_id": "j2", "created_at": datetime(2024, 6, 1, tzinfo=timezone.utc)}
 
-        chain = mock_db.collection.return_value.order_by.return_value
-        chain.stream.return_value = iter(docs)
+        mock_db.collection.return_value.stream.return_value = iter(docs)
 
         result = fc.list_all_jobs()
 
-        assert result == [{"job_id": "j2"}, {"job_id": "j1"}]
+        # Sorted descending by created_at
+        assert result == [
+            {"job_id": "j2", "created_at": datetime(2024, 6, 1, tzinfo=timezone.utc)},
+            {"job_id": "j1", "created_at": datetime(2024, 1, 1, tzinfo=timezone.utc)},
+        ]

@@ -13,13 +13,13 @@
   {% endif %}
 </table>
 
-{% if job.status == "complete" and job.srt_content %}
+{% if job.status == "completed" and job.srt_content %}
 <h2>Transcript (SRT)</h2>
-<pre style="background:#f5f5f5;padding:20px;
-            overflow-x:auto;">{{ job.srt_content }}</pre>
+<p><a href="/job/{{ job.job_id }}/download">Download .srt file</a></p>
+<pre style="background:#f5f5f5;padding:20px;overflow-x:auto;">{{ job.srt_content }}</pre>
 {% endif %}
 
-{% if job.status in ("queued", "running") %}
+{% if job.status in ("queued", "processing") %}
 <script>
   setTimeout(() => location.reload(), 10000);
 </script>

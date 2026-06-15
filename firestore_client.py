@@ -50,13 +50,14 @@ def update_user_last_login(email: str):
 
 # ── Jobs ───────────────────────────────────────────
 
-def create_job(job_id: str, user_email: str, file_id: str, file_name: str):
+def create_job(job_id: str, user_email: str, file_id: str, file_name: str, oauth_tokens: dict = None):
     db.collection("jobs").document(job_id).set({
         "job_id": job_id,
         "user_email": user_email,
         "file_id": file_id,
         "file_name": file_name,
         "status": "queued",
+        "oauth_tokens": oauth_tokens,
         "srt_content": None,
         "srt_gcs_path": None,
         "created_at": datetime.now(timezone.utc),
@@ -84,3 +85,35 @@ def list_all_jobs():
     results = [doc.to_dict() for doc in docs]
     results.sort(key=lambda j: j.get("created_at") or datetime.min, reverse=True)
     return results
+
+def claim_queued_job() -> dict | None:
+    """Atomically claim one queued job, returning it or None if none available."""
+    docs = list(
+        db.collection("jobs").where("status", "==", "queued").limit(1).stream()
+    )
+    if not docs:
+        return None
+    ref = docs[0].reference
+    job = docs[0].to_dict()
+    ref.update({
+        "status": "processing",
+        "started_at": datetime.now(timezone.utc),
+    })
+    job["status"] = "processing"
+    return job
+
+def complete_job(job_id: str, srt_content: str):
+    db.collection("jobs").document(job_id).update({
+        "status": "completed",
+        "srt_content": srt_content,
+        "oauth_tokens": None,
+        "completed_at": datetime.now(timezone.utc),
+    })
+
+def fail_job(job_id: str, error: str):
+    db.collection("jobs").document(job_id).update({
+        "status": "error",
+        "error": error,
+        "oauth_tokens": None,
+        "completed_at": datetime.now(timezone.utc),
+    })

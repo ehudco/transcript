@@ -62,6 +62,29 @@ class TestAuthCallback:
             "name": "Test User",
         }
 
+    async def test_fetch_token_error_shows_login_error(self, client):
+        fake_flow = self._make_fake_flow()
+        fake_flow.fetch_token.side_effect = Exception("Scope mismatch: previously granted scopes differ")
+
+        with patch("auth.get_flow", return_value=fake_flow):
+            resp = await client.get("/auth/callback?code=x&state=s", follow_redirects=False)
+
+        assert resp.status_code == 200
+        assert b"Authentication failed" in resp.content
+
+    async def test_id_token_verification_error_shows_login_error(self, client):
+        fake_flow = self._make_fake_flow()
+        id_info = self._id_info()
+
+        with (
+            patch("auth.get_flow", return_value=fake_flow),
+            patch("auth.id_token.verify_oauth2_token", side_effect=ValueError("Token signature invalid")),
+        ):
+            resp = await client.get("/auth/callback?code=x&state=s", follow_redirects=False)
+
+        assert resp.status_code == 200
+        assert b"Token verification failed" in resp.content
+
     async def test_unverified_email_shows_error(self, client):
         fake_flow = self._make_fake_flow()
         id_info = self._id_info(verified=False)

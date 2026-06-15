@@ -17,7 +17,6 @@ SCOPES = [
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/drive.file",
 ]
 
 def get_flow(request: Request) -> Flow:
@@ -56,7 +55,6 @@ async def auth_google(request: Request):
     flow = get_flow(request)
     auth_url, state = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes="true",
         prompt="consent"
     )
     request.session["oauth_state"] = state
@@ -66,17 +64,29 @@ async def auth_google(request: Request):
 async def auth_callback(request: Request):
     state = request.session.get("oauth_state")
     flow = get_flow(request)
-    flow.fetch_token(
-        authorization_response=str(request.url),
-        state=state
-    )
+    try:
+        flow.fetch_token(
+            authorization_response=str(request.url),
+            state=state
+        )
+    except Exception as exc:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": f"Authentication failed: {exc}"}
+        )
 
     credentials = flow.credentials
-    id_info = id_token.verify_oauth2_token(
-        credentials.id_token,
-        google_requests.Request(),
-        get_secret("GOOGLE_CLIENT_ID")
-    )
+    try:
+        id_info = id_token.verify_oauth2_token(
+            credentials.id_token,
+            google_requests.Request(),
+            get_secret("GOOGLE_CLIENT_ID")
+        )
+    except Exception as exc:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": f"Token verification failed: {exc}"}
+        )
 
     email = id_info.get("email")
     sub = id_info.get("sub")

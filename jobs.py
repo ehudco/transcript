@@ -1,8 +1,8 @@
+import asyncio
 import uuid
-import json
 import os
 from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from firestore_client import create_job, get_job, list_user_jobs
 import re
@@ -10,9 +10,21 @@ import re
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "whisper-project-462317")
-TOPIC_ID = "transcription-jobs"
 TEST_MODE = os.environ.get("TEST_MODE", "false").lower() == "true"
+VM_START_DELAY = int(os.environ.get("VM_START_DELAY", "300"))  # 5 minutes
+
+_vm_start_task: asyncio.Task | None = None
+
+
+async def _delayed_vm_start():
+    await asyncio.sleep(VM_START_DELAY)
+    from compute import get_vm_status, start_vm
+    status = get_vm_status()
+    if status in ("TERMINATED", "STOPPED"):
+        print(f"[jobs] starting VM after {VM_START_DELAY}s delay")
+        start_vm()
+    global _vm_start_task
+    _vm_start_task = None
 
 def parse_drive_file_id(url: str) -> str | None:
     patterns = [
@@ -56,32 +68,20 @@ async def submit_job(request: Request, drive_url: str = Form(...)):
         job_id=job_id,
         user_email=user["email"],
         file_id=file_id,
-        file_name=drive_url
+        file_name=drive_url,
+        oauth_tokens=request.session.get("oauth_tokens"),
     )
 
     if TEST_MODE:
-        print(f"[TEST MODE] Skipping VM start and Pub/Sub publish for job {job_id}")
+        print(f"[TEST MODE] Skipping VM start for job {job_id}")
     else:
-        # Start VM if not running
-        from compute import get_vm_status, start_vm
+        global _vm_start_task
+        from compute import get_vm_status
         status = get_vm_status()
         if status in ("TERMINATED", "STOPPED"):
-            start_vm()
-
-        # Publish job to Pub/Sub
-        from google.cloud import pubsub_v1
-        publisher = pubsub_v1.PublisherClient()
-        topic_path = publisher.topic_path(PROJECT_ID, TOPIC_ID)
-        message = {
-            "job_id": job_id,
-            "file_id": file_id,
-            "user_email": user["email"],
-            "oauth_tokens": request.session.get("oauth_tokens"),
-        }
-        publisher.publish(
-            topic_path,
-            json.dumps(message).encode("utf-8")
-        )
+            if _vm_start_task is None or _vm_start_task.done():
+                print(f"[jobs] VM is {status}, scheduling start in {VM_START_DELAY}s")
+                _vm_start_task = asyncio.create_task(_delayed_vm_start())
 
     return RedirectResponse(f"/job/{job_id}", status_code=303)
 
@@ -104,6 +104,34 @@ async def job_status(request: Request, job_id: str):
         "job_status.html",
         {"request": request, "user": user, "job": job}
     )
+
+@router.get("/job/{job_id}/download")
+async def download_srt(request: Request, job_id: str):
+    guard = require_login(request)
+    if guard:
+        return guard
+
+    user = request.session["user"]
+    job = get_job(job_id)
+
+    if not job:
+        return HTMLResponse("Job not found", status_code=404)
+
+    if job["user_email"] != user["email"] and user["role"] != "admin":
+        return HTMLResponse("Forbidden", status_code=403)
+
+    if job.get("status") != "completed" or not job.get("srt_content"):
+        return HTMLResponse("SRT not available", status_code=404)
+
+    filename = job.get("file_name", job_id)
+    # Use the original file name stem with .srt extension
+    stem = os.path.splitext(os.path.basename(filename))[0] or job_id
+    return Response(
+        content=job["srt_content"],
+        media_type="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="{stem}.srt"'},
+    )
+
 
 @router.get("/my-jobs", response_class=HTMLResponse)
 async def my_jobs(request: Request):

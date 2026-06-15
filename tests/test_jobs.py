@@ -85,43 +85,58 @@ class TestSubmitJob:
         assert resp.status_code in (302, 303, 307)
         assert "/job/" in resp.headers["location"]
 
-    async def test_valid_url_starts_vm_when_terminated(self, user_client):
+    async def test_valid_url_schedules_delayed_start_when_terminated(self, user_client):
+        mock_task = MagicMock()
+        mock_task.done.return_value = True
+
         with (
             patch("jobs.create_job"),
             patch("jobs.TEST_MODE", False),
+            patch("jobs._vm_start_task", mock_task),
             patch("compute.get_vm_status", return_value="TERMINATED"),
-            patch("compute.start_vm") as mock_start,
-            patch("google.cloud.pubsub_v1.PublisherClient") as mock_pub,
+            patch("asyncio.create_task") as mock_create_task,
         ):
-            mock_pub.return_value.topic_path.return_value = "projects/p/topics/t"
-            mock_pub.return_value.publish.return_value = MagicMock()
-
-            resp = await user_client.post(
-                "/submit",
-                data={"drive_url": "https://drive.google.com/file/d/FILE_ID/view"},
-                follow_redirects=False,
-            )
-
-        mock_start.assert_called_once()
-
-    async def test_valid_url_skips_start_when_vm_running(self, user_client):
-        with (
-            patch("jobs.create_job"),
-            patch("jobs.TEST_MODE", False),
-            patch("compute.get_vm_status", return_value="RUNNING"),
-            patch("compute.start_vm") as mock_start,
-            patch("google.cloud.pubsub_v1.PublisherClient") as mock_pub,
-        ):
-            mock_pub.return_value.topic_path.return_value = "projects/p/topics/t"
-            mock_pub.return_value.publish.return_value = MagicMock()
-
             await user_client.post(
                 "/submit",
                 data={"drive_url": "https://drive.google.com/file/d/FILE_ID/view"},
                 follow_redirects=False,
             )
 
-        mock_start.assert_not_called()
+        mock_create_task.assert_called_once()
+
+    async def test_valid_url_does_not_reschedule_if_task_pending(self, user_client):
+        mock_task = MagicMock()
+        mock_task.done.return_value = False  # task already running
+
+        with (
+            patch("jobs.create_job"),
+            patch("jobs.TEST_MODE", False),
+            patch("jobs._vm_start_task", mock_task),
+            patch("compute.get_vm_status", return_value="TERMINATED"),
+            patch("asyncio.create_task") as mock_create_task,
+        ):
+            await user_client.post(
+                "/submit",
+                data={"drive_url": "https://drive.google.com/file/d/FILE_ID/view"},
+                follow_redirects=False,
+            )
+
+        mock_create_task.assert_not_called()
+
+    async def test_valid_url_skips_start_when_vm_running(self, user_client):
+        with (
+            patch("jobs.create_job"),
+            patch("jobs.TEST_MODE", False),
+            patch("compute.get_vm_status", return_value="RUNNING"),
+            patch("asyncio.create_task") as mock_create_task,
+        ):
+            await user_client.post(
+                "/submit",
+                data={"drive_url": "https://drive.google.com/file/d/FILE_ID/view"},
+                follow_redirects=False,
+            )
+
+        mock_create_task.assert_not_called()
 
 
 class TestJobStatus:
