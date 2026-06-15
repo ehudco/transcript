@@ -2,12 +2,13 @@
 Transcription worker — polls Firestore for queued jobs and processes them.
 
 Usage:
-    python worker.py              # real Whisper transcription
-    TEST_MODE=true python worker.py   # returns a dummy SRT, skips Whisper
+    python worker.py              # real WhisperX transcription
+    TEST_MODE=true python worker.py   # returns a dummy SRT, skips WhisperX
 """
 
-import io
+import glob
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -20,6 +21,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
 from firestore_client import claim_queued_job, complete_job, fail_job
+from secret_client import get_secret
 
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "5"))
 IDLE_SHUTDOWN_SECONDS = int(os.environ.get("IDLE_SHUTDOWN_SECONDS", "600"))  # 10 minutes
@@ -68,27 +70,32 @@ def download_file(tokens: dict, file_id: str) -> str:
 
 
 def transcribe(audio_path: str) -> str:
-    """Run Whisper on *audio_path* and return SRT content as a string."""
-    import whisper
-    model = whisper.load_model("base")
-    result = model.transcribe(audio_path)
+    """Run WhisperX on *audio_path* and return SRT content as a string."""
+    hf_token = get_secret("HF_TOKEN")
 
-    segments = result.get("segments", [])
-    lines = []
-    for i, seg in enumerate(segments, start=1):
-        start = _format_timestamp(seg["start"])
-        end = _format_timestamp(seg["end"])
-        text = seg["text"].strip()
-        lines.append(f"{i}\n{start} --> {end}\n{text}\n")
-    return "\n".join(lines)
+    with tempfile.TemporaryDirectory() as output_dir:
+        cmd = [
+            "whisperx",
+            audio_path,
+            "--model", "ivrit-ai/whisper-large-v3-ct2",
+            "--language", "he",
+            "--hf_token", hf_token,
+            "--output_format", "srt",
+            "--output_dir", output_dir,
+            "--device", "cuda",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"whisperx failed (exit {result.returncode}):\n{result.stderr}"
+            )
 
+        srt_files = glob.glob(os.path.join(output_dir, "*.srt"))
+        if not srt_files:
+            raise RuntimeError("whisperx produced no .srt file")
 
-def _format_timestamp(seconds: float) -> str:
-    ms = int((seconds % 1) * 1000)
-    s = int(seconds) % 60
-    m = int(seconds) // 60 % 60
-    h = int(seconds) // 3600
-    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+        with open(srt_files[0], encoding="utf-8") as f:
+            return f.read()
 
 
 def process_job(job: dict):
