@@ -16,6 +16,7 @@ import time
 from dotenv import load_dotenv
 load_dotenv()
 
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -48,6 +49,11 @@ def build_drive_service(tokens: dict):
         client_secret=tokens["client_secret"],
         scopes=tokens.get("scopes"),
     )
+    # Always refresh — the stored access token is typically already expired
+    # (drive.file scope returns 404 instead of 401 for expired tokens, so
+    # the library won't auto-refresh)
+    if creds.refresh_token:
+        creds.refresh(GoogleAuthRequest())
     return build("drive", "v3", credentials=creds)
 
 
