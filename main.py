@@ -45,6 +45,25 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(jobs_router)
 
+@app.get("/debug/picker-config")
+async def debug_picker_config(request: Request):
+    """Temporary debug endpoint — remove after debugging."""
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse("/login")
+    tokens = request.session.get("oauth_tokens", {})
+    key = get_secret("PICKER_API_KEY").strip()
+    return {
+        "key_length": len(key),
+        "key_first_8": key[:8],
+        "key_last_4": key[-4:],
+        "key_has_newline": "\n" in key,
+        "key_has_spaces": " " in key,
+        "oauth_token_present": bool(tokens.get("token")),
+        "oauth_token_first_10": tokens.get("token", "")[:10],
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     user = request.session.get("user")

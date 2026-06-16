@@ -49,6 +49,7 @@
         .addView(google.picker.ViewId.DOCS)
         .setOAuthToken(OAUTH_TOKEN)
         .setDeveloperKey(API_KEY)
+        .setOrigin(window.location.protocol + "//" + window.location.host)
         .setCallback(pickerCallback)
         .build();
       picker.setVisible(true);
