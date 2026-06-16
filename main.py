@@ -11,6 +11,9 @@ from admin import router as admin_router
 from jobs import router as jobs_router
 from secret_client import get_secret
 
+BUILD_ID = os.environ.get("BUILD_ID", "local")
+
+
 def _dashboard_context(request):
     """Extra template vars needed by dashboard.html."""
     tokens = request.session.get("oauth_tokens", {})
@@ -40,10 +43,16 @@ app.add_middleware(
 )
 
 templates = Jinja2Templates(directory="templates")
+templates.env.globals["build_id"] = BUILD_ID
 
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(jobs_router)
+
+@app.get("/version")
+async def version():
+    return {"build_id": os.environ.get("BUILD_ID", "local")}
+
 
 @app.get("/debug/picker-config")
 async def debug_picker_config(request: Request):

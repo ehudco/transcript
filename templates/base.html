@@ -30,6 +30,9 @@
     <a href="/admin/">Admin</a>
     {% endif %}
     <a href="/logout">Logout ({{ user.email }})</a>
+    <span style="margin-left:auto;font-size:11px;color:#999;">
+      build: <a href="/version" style="color:#999;">{{ build_id }}</a>
+    </span>
   </nav>
   {% endif %}
   {% block content %}{% endblock %}

@@ -22,7 +22,7 @@ steps:
       - --platform=managed
       - --allow-unauthenticated
       - --service-account=transcript-web@$PROJECT_ID.iam.gserviceaccount.com
-      - --set-env-vars=ENV=production,GOOGLE_CLOUD_PROJECT=$PROJECT_ID
+      - --set-env-vars=ENV=production,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUILD_ID=$BUILD_ID
 
 images:
   - gcr.io/$PROJECT_ID/transcript-web:latest

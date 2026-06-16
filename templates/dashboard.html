@@ -57,12 +57,16 @@
   }
 
   function pickerCallback(data) {
+    console.log("[picker] callback:", JSON.stringify(data));
     if (data.action === google.picker.Action.PICKED) {
       const file = data.docs[0];
       document.getElementById("file_id").value   = file.id;
       document.getElementById("file_name").value  = file.name;
       document.getElementById("selected-file").textContent = "Selected: " + file.name;
       document.getElementById("submit-btn").disabled = false;
+    } else if (data.action === google.picker.Action.ERROR) {
+      console.error("[picker] error:", data);
+      alert("Picker error: " + JSON.stringify(data));
     }
   }
 </script>
