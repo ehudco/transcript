@@ -38,38 +38,43 @@
 </table>
 {% endif %}
 
+<script src="https://apis.google.com/js/api.js"></script>
 <script>
-  const CLIENT_ID = "{{ google_client_id }}";
-  const API_KEY   = "{{ picker_api_key }}";
+  const API_KEY     = "{{ picker_api_key }}";
   const OAUTH_TOKEN = "{{ oauth_token }}";
 
   function openPicker() {
-    gapi.load("picker", () => {
-      const picker = new google.picker.PickerBuilder()
-        .addView(google.picker.ViewId.DOCS)
-        .setOAuthToken(OAUTH_TOKEN)
-        .setDeveloperKey(API_KEY)
-        .setOrigin(window.location.protocol + "//" + window.location.host)
-        .setCallback(pickerCallback)
-        .build();
-      picker.setVisible(true);
+    gapi.load("picker", function() {
+      console.log("[picker] gapi loaded, API_KEY length:", API_KEY.length, "token present:", !!OAUTH_TOKEN);
+      try {
+        const view = new google.picker.View(google.picker.ViewId.DOCS);
+        const picker = new google.picker.PickerBuilder()
+          .addView(view)
+          .setOAuthToken(OAUTH_TOKEN)
+          .setDeveloperKey(API_KEY)
+          .setOrigin(window.location.protocol + "//" + window.location.host)
+          .setCallback(pickerCallback)
+          .build();
+        picker.setVisible(true);
+      } catch(e) {
+        console.error("[picker] build error:", e);
+        alert("Picker build error: " + e.message);
+      }
     });
   }
 
   function pickerCallback(data) {
-    console.log("[picker] callback:", JSON.stringify(data));
+    console.log("[picker] callback action:", data.action, JSON.stringify(data));
     if (data.action === google.picker.Action.PICKED) {
       const file = data.docs[0];
-      document.getElementById("file_id").value   = file.id;
-      document.getElementById("file_name").value  = file.name;
+      document.getElementById("file_id").value  = file.id;
+      document.getElementById("file_name").value = file.name;
       document.getElementById("selected-file").textContent = "Selected: " + file.name;
       document.getElementById("submit-btn").disabled = false;
     } else if (data.action === google.picker.Action.ERROR) {
-      console.error("[picker] error:", data);
+      console.error("[picker] error data:", JSON.stringify(data));
       alert("Picker error: " + JSON.stringify(data));
     }
   }
 </script>
-<script src="https://apis.google.com/js/api.js"></script>
-<script src="https://apis.google.com/js/platform.js" async defer></script>
 {% endblock %}
