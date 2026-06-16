@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from google_auth_oauthlib.flow import Flow
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-from firestore_client import get_user, update_user_last_login, create_pending_user
+from firestore_client import get_user, update_user_last_login, create_pending_user, save_user_refresh_token, get_user_refresh_token
 from secret_client import get_secret
 import json
 
@@ -38,7 +38,7 @@ def get_flow(request: Request) -> Flow:
     flow = Flow.from_client_config(
         client_config,
         scopes=SCOPES,
-        redirect_uri=redirect_uri
+        redirect_uri=redirect_uri,
     )
     return flow
 
@@ -55,7 +55,6 @@ async def auth_google(request: Request):
     flow = get_flow(request)
     auth_url, state = flow.authorization_url(
         access_type="offline",
-        prompt="consent"
     )
     request.session["oauth_state"] = state
     return RedirectResponse(auth_url)
@@ -133,10 +132,18 @@ async def auth_callback(request: Request):
         "name": id_info.get("name", email),
     }
 
+    # Persist refresh token in Firestore (Google only issues it on first consent).
+    # On subsequent logins without prompt="consent", credentials.refresh_token is None.
+    refresh_token = credentials.refresh_token
+    if refresh_token:
+        save_user_refresh_token(email, refresh_token)
+    else:
+        refresh_token = get_user_refresh_token(email)
+
     # Store OAuth tokens for Drive access
     request.session["oauth_tokens"] = {
         "token": credentials.token,
-        "refresh_token": credentials.refresh_token,
+        "refresh_token": refresh_token,
         "token_uri": credentials.token_uri,
         "client_id": credentials.client_id,
         "client_secret": credentials.client_secret,

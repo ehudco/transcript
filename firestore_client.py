@@ -48,6 +48,15 @@ def update_user_last_login(email: str):
         "last_login": datetime.now(timezone.utc)
     })
 
+def save_user_refresh_token(email: str, refresh_token: str):
+    db.collection("users").document(email).update({
+        "refresh_token": refresh_token,
+    })
+
+def get_user_refresh_token(email: str) -> str | None:
+    doc = db.collection("users").document(email).get()
+    return doc.to_dict().get("refresh_token") if doc.exists else None
+
 # ── Jobs ───────────────────────────────────────────
 
 def create_job(job_id: str, user_email: str, file_id: str, file_name: str, oauth_tokens: dict = None):
