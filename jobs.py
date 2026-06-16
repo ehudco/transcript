@@ -78,7 +78,9 @@ async def submit_job(request: Request, file_id: str = Form(...), file_name: str 
         global _vm_start_task
         from compute import get_vm_status
         status = get_vm_status()
-        if status in ("TERMINATED", "STOPPED"):
+        if status == "NOT_FOUND":
+            print(f"[jobs] VM '{os.environ.get('VM_INSTANCE_NAME', 'transcription-worker')}' not found — job queued but VM will not be started")
+        elif status in ("TERMINATED", "STOPPED"):
             if _vm_start_task is None or _vm_start_task.done():
                 print(f"[jobs] VM is {status}, scheduling start in {VM_START_DELAY}s")
                 _vm_start_task = asyncio.create_task(_delayed_vm_start())

@@ -11,13 +11,19 @@ def get_compute_client():
     return discovery.build("compute", "v1", credentials=credentials)
 
 def get_vm_status() -> str:
+    from googleapiclient.errors import HttpError
     client = get_compute_client()
-    result = client.instances().get(
-        project=PROJECT_ID,
-        zone=ZONE,
-        instance=INSTANCE_NAME
-    ).execute()
-    return result.get("status", "UNKNOWN")
+    try:
+        result = client.instances().get(
+            project=PROJECT_ID,
+            zone=ZONE,
+            instance=INSTANCE_NAME
+        ).execute()
+        return result.get("status", "UNKNOWN")
+    except HttpError as e:
+        if e.resp.status == 404:
+            return "NOT_FOUND"
+        raise
 
 def start_vm():
     client = get_compute_client()
