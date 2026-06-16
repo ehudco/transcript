@@ -41,19 +41,31 @@ Whisper was skipped (TEST_MODE=true).
 
 
 def build_drive_service(tokens: dict):
+    print(f"[worker] token keys present: {list(tokens.keys())}")
+    print(f"[worker] has refresh_token: {bool(tokens.get('refresh_token'))}")
+    print(f"[worker] scopes: {tokens.get('scopes')}")
+    print(f"[worker] token_uri: {tokens.get('token_uri')}")
+    print(f"[worker] client_id present: {bool(tokens.get('client_id'))}")
+    print(f"[worker] client_secret present: {bool(tokens.get('client_secret'))}")
+
     creds = Credentials(
         token=tokens["token"],
-        refresh_token=tokens["refresh_token"],
+        refresh_token=tokens.get("refresh_token"),
         token_uri=tokens["token_uri"],
         client_id=tokens["client_id"],
         client_secret=tokens["client_secret"],
         scopes=tokens.get("scopes"),
     )
-    # Always refresh — the stored access token is typically already expired
-    # (drive.file scope returns 404 instead of 401 for expired tokens, so
-    # the library won't auto-refresh)
     if creds.refresh_token:
-        creds.refresh(GoogleAuthRequest())
+        print(f"[worker] refreshing access token...")
+        try:
+            creds.refresh(GoogleAuthRequest())
+            print(f"[worker] token refresh succeeded, new token prefix: {creds.token[:10] if creds.token else 'None'}")
+        except Exception as e:
+            print(f"[worker] token refresh FAILED: {e}", file=sys.stderr)
+            raise
+    else:
+        print(f"[worker] WARNING: no refresh_token — using stored access token as-is (likely expired)")
     return build("drive", "v3", credentials=creds)
 
 
@@ -111,6 +123,10 @@ def process_job(job: dict):
     tokens = job.get("oauth_tokens")
 
     print(f"[worker] processing job {job_id} (file_id={file_id})")
+    print(f"[worker] oauth_tokens present: {bool(tokens)}")
+    if tokens:
+        print(f"[worker] token scopes: {tokens.get('scopes')}")
+        print(f"[worker] has refresh_token: {bool(tokens.get('refresh_token'))}")
 
     if TEST_MODE:
         print(f"[worker] TEST_MODE — returning dummy SRT")
