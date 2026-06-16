@@ -8,6 +8,26 @@ from firestore_client import create_job, get_job, list_user_jobs
 from secret_client import get_secret
 import re
 
+def _touch_drive_file(tokens: dict, file_id: str):
+    """
+    Make a server-side Drive API call so Google registers this file as
+    'opened by the app' under the drive.file scope. Without this, the
+    worker's refreshed token gets 404 because the Picker only grants
+    client-side (JS) access, not server-side access.
+    """
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build
+    creds = Credentials(
+        token=tokens["token"],
+        refresh_token=tokens.get("refresh_token"),
+        token_uri=tokens["token_uri"],
+        client_id=tokens["client_id"],
+        client_secret=tokens["client_secret"],
+        scopes=tokens.get("scopes"),
+    )
+    svc = build("drive", "v3", credentials=creds)
+    svc.files().get(fileId=file_id, fields="id,name").execute()
+
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
@@ -64,13 +84,21 @@ async def submit_job(request: Request, file_id: str = Form(...), file_name: str 
         )
 
     job_id = str(uuid.uuid4())
+    tokens = request.session.get("oauth_tokens")
     create_job(
         job_id=job_id,
         user_email=user["email"],
         file_id=file_id,
         file_name=file_name,
-        oauth_tokens=request.session.get("oauth_tokens"),
+        oauth_tokens=tokens,
     )
+
+    if not TEST_MODE and tokens:
+        try:
+            _touch_drive_file(tokens, file_id)
+            print(f"[jobs] server-side Drive access confirmed for file {file_id}")
+        except Exception as e:
+            print(f"[jobs] warning: could not touch Drive file {file_id}: {e}")
 
     if TEST_MODE:
         print(f"[TEST MODE] Skipping VM start for job {job_id}")
