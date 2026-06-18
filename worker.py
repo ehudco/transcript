@@ -109,11 +109,18 @@ def transcribe(audio_path: str) -> str:
                 f"whisperx failed (exit {result.returncode}):\n{result.stderr}"
             )
 
-        srt_files = glob.glob(os.path.join(output_dir, "*.srt"))
-        if not srt_files:
-            raise RuntimeError("whisperx produced no .srt file")
+        audio_stem = os.path.splitext(os.path.basename(audio_path))[0]
+        expected_srt = os.path.join(output_dir, f"{audio_stem}.srt")
+        if os.path.exists(expected_srt):
+            srt_path = expected_srt
+        else:
+            # Fallback: pick any .srt if whisperx used a different name
+            srt_files = glob.glob(os.path.join(output_dir, "*.srt"))
+            if not srt_files:
+                raise RuntimeError("whisperx produced no .srt file")
+            srt_path = srt_files[0]
 
-        with open(srt_files[0], encoding="utf-8") as f:
+        with open(srt_path, encoding="utf-8") as f:
             return f.read()
 
 

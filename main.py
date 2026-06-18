@@ -14,6 +14,37 @@ from jobs import router as jobs_router
 from secret_client import get_secret
 
 QUEUE_CHECK_INTERVAL = int(os.environ.get("QUEUE_CHECK_INTERVAL", "1800"))  # 30 minutes
+TRANSLATION_CHECK_INTERVAL = int(os.environ.get("TRANSLATION_CHECK_INTERVAL", "60"))  # 1 minute
+
+
+async def _translation_worker():
+    """Pick up completed-but-untranslated jobs and translate them."""
+    while True:
+        await asyncio.sleep(TRANSLATION_CHECK_INTERVAL)
+        try:
+            from firestore_client import list_completed_untranslated_jobs, set_translation_status, complete_translation
+            from translate import translate_srt
+            jobs = list_completed_untranslated_jobs()
+            for job in jobs:
+                job_id = job["job_id"]
+                srt_content = job.get("srt_content", "")
+                if not srt_content:
+                    continue
+                print(f"[translation] starting job {job_id}")
+                set_translation_status(job_id, "translating")
+                try:
+                    translated = await asyncio.get_event_loop().run_in_executor(
+                        None, translate_srt, srt_content
+                    )
+                    from translate import make_csv
+                    csv_content = make_csv(srt_content, translated)
+                    complete_translation(job_id, translated, csv_content)
+                    print(f"[translation] job {job_id} completed")
+                except Exception as e:
+                    print(f"[translation] job {job_id} failed: {e}")
+                    set_translation_status(job_id, "failed")
+        except Exception as e:
+            print(f"[translation] unexpected error: {e}")
 
 
 async def _queue_watchdog():
@@ -40,9 +71,13 @@ async def _queue_watchdog():
 
 @asynccontextmanager
 async def lifespan(app):
-    task = asyncio.create_task(_queue_watchdog())
+    tasks = [
+        asyncio.create_task(_queue_watchdog()),
+        asyncio.create_task(_translation_worker()),
+    ]
     yield
-    task.cancel()
+    for t in tasks:
+        t.cancel()
 
 BUILD_ID = os.environ.get("BUILD_ID", "local")
 

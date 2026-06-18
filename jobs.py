@@ -163,6 +163,60 @@ async def download_srt(request: Request, job_id: str):
     )
 
 
+@router.get("/job/{job_id}/download-csv")
+async def download_csv(request: Request, job_id: str):
+    guard = require_login(request)
+    if guard:
+        return guard
+
+    user = request.session["user"]
+    job = get_job(job_id)
+
+    if not job:
+        return HTMLResponse("Job not found", status_code=404)
+
+    if job["user_email"] != user["email"] and user["role"] != "admin":
+        return HTMLResponse("Forbidden", status_code=403)
+
+    if not job.get("csv_content"):
+        return HTMLResponse("CSV not available", status_code=404)
+
+    filename = job.get("file_name", job_id)
+    stem = os.path.splitext(os.path.basename(filename))[0] or job_id
+    return Response(
+        content=job["csv_content"].encode("utf-8-sig"),  # utf-8-sig for Excel compatibility
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{stem}.csv"'},
+    )
+
+
+@router.get("/job/{job_id}/download-translation")
+async def download_translation(request: Request, job_id: str):
+    guard = require_login(request)
+    if guard:
+        return guard
+
+    user = request.session["user"]
+    job = get_job(job_id)
+
+    if not job:
+        return HTMLResponse("Job not found", status_code=404)
+
+    if job["user_email"] != user["email"] and user["role"] != "admin":
+        return HTMLResponse("Forbidden", status_code=403)
+
+    if job.get("translation_status") != "completed" or not job.get("srt_translated"):
+        return HTMLResponse("Translation not available", status_code=404)
+
+    filename = job.get("file_name", job_id)
+    stem = os.path.splitext(os.path.basename(filename))[0] or job_id
+    return Response(
+        content=job["srt_translated"],
+        media_type="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="{stem}_english.srt"'},
+    )
+
+
 @router.get("/my-jobs", response_class=HTMLResponse)
 async def my_jobs(request: Request):
     guard = require_login(request)

@@ -14,9 +14,25 @@
 </table>
 
 {% if job.status == "completed" and job.srt_content %}
-<h2>Transcript (SRT)</h2>
-<p><a href="/job/{{ job.job_id }}/download">Download .srt file</a></p>
-<pre style="background:#f5f5f5;padding:20px;overflow-x:auto;">{{ job.srt_content }}</pre>
+<h2>Hebrew Transcript</h2>
+<p><a href="/job/{{ job.job_id }}/download">Download Hebrew .srt</a></p>
+<pre style="background:#f5f5f5;padding:20px;overflow-x:auto;direction:rtl;">{{ job.srt_content }}</pre>
+
+<h2>English Translation</h2>
+{% if job.translation_status == "completed" and job.srt_translated %}
+<p>
+  <a href="/job/{{ job.job_id }}/download-translation">Download English .srt</a>
+  &nbsp;|&nbsp;
+  <a href="/job/{{ job.job_id }}/download-csv">Download bilingual .csv</a>
+</p>
+<pre style="background:#f5f5f5;padding:20px;overflow-x:auto;">{{ job.srt_translated }}</pre>
+{% elif job.translation_status == "translating" %}
+<p>Translation in progress... <script>setTimeout(() => location.reload(), 15000);</script></p>
+{% elif job.translation_status == "failed" %}
+<p class="error">Translation failed.</p>
+{% else %}
+<p>Translation queued — will appear shortly.</p>
+{% endif %}
 {% endif %}
 
 {% if job.status in ("queued", "processing") %}

@@ -68,11 +68,35 @@ def create_job(job_id: str, user_email: str, file_id: str, file_name: str, oauth
         "status": "queued",
         "oauth_tokens": oauth_tokens,
         "srt_content": None,
+        "srt_translated": None,
+        "translation_status": None,
         "srt_gcs_path": None,
         "created_at": datetime.now(timezone.utc),
         "started_at": None,
         "completed_at": None,
         "error": None,
+    })
+
+
+def list_completed_untranslated_jobs():
+    docs = (
+        db.collection("jobs")
+        .where("status", "==", "completed")
+        .where("translation_status", "==", None)
+        .stream()
+    )
+    return [doc.to_dict() for doc in docs]
+
+
+def set_translation_status(job_id: str, status: str):
+    db.collection("jobs").document(job_id).update({"translation_status": status})
+
+
+def complete_translation(job_id: str, srt_translated: str, csv_content: str):
+    db.collection("jobs").document(job_id).update({
+        "srt_translated": srt_translated,
+        "csv_content": csv_content,
+        "translation_status": "completed",
     })
 
 def get_job(job_id: str):
