@@ -4,7 +4,7 @@ Also provides make_csv() to produce a bilingual CSV from both SRT strings.
 """
 
 import csv
-import io
+import io  # used for CSV output buffer
 import pysrt
 from secret_client import get_secret
 
@@ -16,7 +16,7 @@ def translate_srt(srt_content: str) -> str:
     from openai import OpenAI
     client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
 
-    subs = pysrt.open(io.StringIO(srt_content), encoding="utf-8")
+    subs = pysrt.from_string(srt_content)
     translated_texts = []
 
     for idx, sub in enumerate(subs):
@@ -56,8 +56,8 @@ def translate_srt(srt_content: str) -> str:
 
 def make_csv(hebrew_srt: str, english_srt: str) -> str:
     """Produce a bilingual CSV string from Hebrew and English SRT content."""
-    he_subs = pysrt.open(io.StringIO(hebrew_srt), encoding="utf-8")
-    en_subs = pysrt.open(io.StringIO(english_srt), encoding="utf-8")
+    he_subs = pysrt.from_string(hebrew_srt)
+    en_subs = pysrt.from_string(english_srt)
 
     if len(he_subs) != len(en_subs):
         raise ValueError(

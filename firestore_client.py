@@ -82,10 +82,12 @@ def list_completed_untranslated_jobs():
     docs = (
         db.collection("jobs")
         .where("status", "==", "completed")
-        .where("translation_status", "==", None)
         .stream()
     )
-    return [doc.to_dict() for doc in docs]
+    return [
+        d.to_dict() for d in docs
+        if d.to_dict().get("translation_status") is None
+    ]
 
 
 def set_translation_status(job_id: str, status: str):
