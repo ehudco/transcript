@@ -1,7 +1,9 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -10,6 +12,37 @@ from auth import router as auth_router
 from admin import router as admin_router
 from jobs import router as jobs_router
 from secret_client import get_secret
+
+QUEUE_CHECK_INTERVAL = int(os.environ.get("QUEUE_CHECK_INTERVAL", "1800"))  # 30 minutes
+
+
+async def _queue_watchdog():
+    """Periodically check for queued jobs and start the VM if needed."""
+    while True:
+        await asyncio.sleep(QUEUE_CHECK_INTERVAL)
+        try:
+            from firestore_client import list_all_jobs
+            from compute import get_vm_status, start_vm
+            queued = [j for j in list_all_jobs() if j.get("status") == "queued"]
+            if queued:
+                print(f"[watchdog] {len(queued)} queued job(s) found")
+                status = get_vm_status()
+                if status in ("TERMINATED", "STOPPED"):
+                    print(f"[watchdog] VM is {status} — starting it now")
+                    start_vm()
+                else:
+                    print(f"[watchdog] VM status is {status} — no action needed")
+            else:
+                print(f"[watchdog] no queued jobs")
+        except Exception as e:
+            print(f"[watchdog] error: {e}")
+
+
+@asynccontextmanager
+async def lifespan(app):
+    task = asyncio.create_task(_queue_watchdog())
+    yield
+    task.cancel()
 
 BUILD_ID = os.environ.get("BUILD_ID", "local")
 
@@ -26,7 +59,7 @@ def _dashboard_context(request):
         "oauth_token": tokens.get("token", ""),
     }
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 # Trust X-Forwarded-Proto from Cloud Run's proxy so request.url uses https://
 if os.environ.get("ENV") != "development":
