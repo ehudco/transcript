@@ -32,11 +32,11 @@ DOWNLOAD_ONLY = os.environ.get("DOWNLOAD_ONLY", "false").lower() == "true"
 DUMMY_SRT = """\
 1
 00:00:00,000 --> 00:00:02,000
-This is a test transcription.
+שלום, זוהי תמלול לדוגמה.
 
 2
 00:00:02,000 --> 00:00:04,000
-Whisper was skipped (TEST_MODE=true).
+וויספר דולג במצב בדיקה.
 """
 
 
